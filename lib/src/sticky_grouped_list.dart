@@ -45,7 +45,10 @@ class StickyGroupedListView<T, E> extends StatefulWidget {
   final Widget Function(BuildContext context, T element, int index)?
       indexedItemBuilder;
 
-  /// Used to clearly indentify an element. The returned value can be of any
+  /// Callback of the current top index element during scrolling
+  final void Function(int index, T element)? currentTopIndex;
+
+  /// Used to clearly identify an element. The returned value can be of any
   /// type but must be unique for each element.
   ///
   /// Used by [GroupedItemScrollController] to scroll and jump to a specific
@@ -147,6 +150,7 @@ class StickyGroupedListView<T, E> extends StatefulWidget {
     this.itemBuilder,
     this.indexedItemBuilder,
     this.itemComparator,
+    this.currentTopIndex,
     this.elementIdentifier,
     this.order = StickyGroupedListOrder.ASC,
     this.separator = const SizedBox.shrink(),
@@ -295,8 +299,7 @@ class StickyGroupedListViewState<T, E>
   }
 
   _positionListener() {
-    _headerBox ??=
-        _groupHeaderKey?.currentContext?.findRenderObject() as RenderBox?;
+    _headerBox ??= _groupHeaderKey?.currentContext?.findRenderObject() as RenderBox?;
     double headerHeight = _headerBox?.size.height ?? 0;
     _listBox ??= _key.currentContext?.findRenderObject() as RenderBox?;
     double height = _listBox?.size.height ?? 0;
@@ -309,25 +312,69 @@ class StickyGroupedListViewState<T, E>
       return current.itemTrailingEdge < pos.itemTrailingEdge ? current : pos;
     }
 
-    ItemPosition currentItem = _listener.itemPositions.value
+    final group = _listener.itemPositions.value
         .where((ItemPosition position) =>
-            !_isSeparator!(position.index) &&
-            position.itemTrailingEdge > headerDimension!)
-        .reduce(reducePositions);
+    !_isSeparator!(position.index) &&
+        position.itemTrailingEdge > headerDimension!);
+    if (group.isNotEmpty) {
+      ItemPosition currentItem = group.reduce(reducePositions);
 
-    int index = currentItem.index ~/ 2;
-    if (_topElementIndex != index) {
-      E curr = widget.groupBy(sortedElements[index]);
-      E prev = widget.groupBy(sortedElements[_topElementIndex]);
-      if (prev != curr) {
-        _topElementIndex = index;
-        _streamController.add(_topElementIndex);
+      int index = currentItem.index ~/ 2;
+      if (_topElementIndex != index) {
+        E curr = widget.groupBy(sortedElements[index]);
+        E prev = widget.groupBy(sortedElements[_topElementIndex]);
+        if (prev != curr) {
+          _topElementIndex = index;
+          _streamController.add(_topElementIndex);
+          if (widget.currentTopIndex != null) {
+            widget.currentTopIndex!(_topElementIndex, sortedElements[index]);
+          }
+        }
       }
+
+
+    // ItemPosition currentItem = _listener.itemPositions.value
+    //     .where((ItemPosition position) =>
+    //         !_isSeparator!(position.index) &&
+    //         position.itemTrailingEdge > headerDimension!)
+    //     .reduce(reducePositions);
+    //
+    // int index = currentItem.index ~/ 2;
+    // if (_topElementIndex != index) {
+    //   if(_topElementIndex < sortedElements.length) {
+    //     E curr = widget.groupBy(sortedElements[index]);
+    //     E prev = widget.groupBy(sortedElements[_topElementIndex]);
+    //     if (prev != curr) {
+    //       _topElementIndex = index;
+    //       _streamController.add(_topElementIndex);
+    //       if (widget.currentTopIndex != null) {
+    //         widget.currentTopIndex!(_topElementIndex, sortedElements[index]);
+    //       }
+    //     }
+    //   } else {
+    //     _topElementIndex = index;
+    //     _streamController.add(_topElementIndex);
+    //     if (widget.currentTopIndex != null) {
+    //       widget.currentTopIndex!(_topElementIndex, sortedElements[index]);
+    //     }
+    //   }
+      // E curr = widget.groupBy(sortedElements[index]);
+      // E prev = widget.groupBy(sortedElements[_topElementIndex]);
+      // if (prev != curr) {
+      //   _topElementIndex = index;
+      //   _streamController.add(_topElementIndex);
+      //   if (widget.currentTopIndex != null) {
+      //     widget.currentTopIndex!(_topElementIndex, sortedElements[index]);
+      //   }
+      // }
     }
   }
 
   List<T> _sortElements() {
     List<T> elements = widget.elements;
+    if (widget.order == StickyGroupedListOrder.NONE) {
+      return elements;
+    }
     if (elements.isNotEmpty) {
       elements.sort((e1, e2) {
         int? compareResult;
@@ -357,7 +404,7 @@ class StickyGroupedListViewState<T, E>
   }
 
   Widget _showFixedGroupHeader(int index) {
-    if (widget.elements.isNotEmpty) {
+    if (widget.elements.isNotEmpty && index < sortedElements.length) {
       _groupHeaderKey = GlobalKey();
       return Container(
         key: _groupHeaderKey,
