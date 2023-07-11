@@ -444,7 +444,7 @@ class GroupedItemScrollController extends ItemScrollController {
     double alignment = 0,
     bool automaticAlignment = true,
   }) {
-    if (automaticAlignment) {
+    if (automaticAlignment && _stickyGroupedListViewState != null) {
       alignment = _stickyGroupedListViewState!.headerDimension ?? alignment;
     }
     return super.jumpTo(index: index * 2 + 1, alignment: alignment);
